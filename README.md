@@ -1,0 +1,1 @@
+# vpr_for_indoor_from_monocular_camera_image
