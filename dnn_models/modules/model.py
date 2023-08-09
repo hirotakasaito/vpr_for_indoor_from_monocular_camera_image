@@ -15,6 +15,9 @@ def select_encoder(encoder_name, embedding_size):
     elif encoder_name == "mobilenetv3": 
         encoder = timm.create_model('tf_mobilenetv3_large_075', pretrained=True, num_classes=embedding_size, in_chans=3) 
 
+    elif encoder_name == "swin_transformer": 
+        encoder = timm.create_model('swin_small_patch4_window7_224', pretrained=True, num_classes=embedding_size, in_chans=3) 
+
     return encoder
 
 
@@ -48,8 +51,10 @@ class Vpr(pl.LightningModule):
         self._batch_size = self.hparams.batch_size
 
         self._encoder = Encoder(self._encoder_name, self._embedding_size)
-        self._gru1 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
-        self._gru2 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
+        # self._gru1 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
+        # self._gru2 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
+        self._lstm1 = nn.LSTM(self._embedding_size, 64, 2, batch_first=True)
+        self._lstm2 = nn.LSTM(self._embedding_size, 64, 2, batch_first=True)
 
         self._out_list = []
         self._img_list = []
@@ -64,9 +69,13 @@ class Vpr(pl.LightningModule):
 
     def forward(self,img1, img2, batch_size):
         h0 = torch.zeros(2, batch_size, 64).to(img1.device)
+        c0 = torch.zeros(2, batch_size, 64).to(img1.device)
         x1, x2 = self._encoder(img1, img2)
-        x1, _ = self._gru1(x1, h0)
-        x2, _ = self._gru2(x2, h0)
+        # x1, _ = self._gru1(x1, h0)
+        # x2, _ = self._gru2(x2, h0)
+        x1, (_,_) = self._lstm1(x1, (h0,c0))
+        x2, (_,_) = self._lstm2(x2, (h0,c0))
+
         train_output = self._fc(torch.cat([x1[:,-1,:], x2[:,-1,:]], dim=-1))
 
         return train_output
