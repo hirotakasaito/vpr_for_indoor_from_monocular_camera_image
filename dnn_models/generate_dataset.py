@@ -189,20 +189,24 @@ def main():
             print("==== save data as torch tensor ====")
             for idx in tqdm(range(int(len(dataset["obs"])/args.num_image))):
                 t0 = idx*args.num_image
-                t1 = t0+args.num_image
+                t1 = t1 + args.num_image
+
                 for i in range(50):
                     i = int(i)
-                    file_name = str(dc) + str(idx) + str(i) + ".pt"
-                    path = os.path.join(out_dir, file_name)
-
-                    if (t0+i+args.num_image) >= len(dataset["pos"]):
+                    if t1+i > len(dataset["obs"]):
                         continue
 
+                    file_name = str(dc) + str(idx) + str(i) + ".pt"
+                    path = os.path.join(out_dir, file_name)
+                    
                     pose1 = dataset["pos"][t1]
-                    pose2 = dataset["pos"][t0+i+args.num_image]
+                    pose2 = dataset["pos"][t1+i]
+                    obs1 = dataset["obs"][t0:t1]
+                    obs2 = dataset["obs"][t0+i:t1+i]
+
+                    concat_obs = [obs1, obs2]
                     rel_pose = transform_pose(pose2, pose1)
                     dis = math.sqrt(rel_pose[0] * rel_pose[0] + rel_pose[1] * rel_pose[1])
-
                     if dis > args.threshold_radius:
                         gt = 0.0
                         if gt_0_count >= max_0_count:
@@ -215,11 +219,8 @@ def main():
                             continue
                         else:
                             gt_1_count += 1
-                    tensor_gt = torch.tensor(gt, dtype=torch.float32)
 
-                    obs1 = dataset["obs"][t0:t1]
-                    obs2 = dataset["obs"][i:i+args.num_image]
-                    concat_obs = [obs1, obs2]
+                    tensor_gt = torch.tensor(gt, dtype=torch.float32)
                     tensor_obs = torch.tensor(np.array(concat_obs), dtype=torch.float32)
                     data ={"imgs":tensor_obs, "gt":tensor_gt}
                 
