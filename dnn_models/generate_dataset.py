@@ -95,23 +95,27 @@ def arg_parse():
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("-bd","--bagfile-dir",type=str,default="/share/private/27th/hirotaka_saito/bagfile/sq2/d_kan1/path/")
-    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_test/")
-    parser.add_argument("-tr","--threshold-radius", type=float, default=2)
+    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_path2")
+    # parser.add_argument("-tr","--threshold-radius", type=float, default=5)
     parser.add_argument("-ni","--num-image", type=int, default=5)
     parser.add_argument("-to","--topic-odom", type=str, default="t_frog/odom")
     parser.add_argument("-ti","--topic-image", type=str, default="camera/color/image_raw/compressed")
     parser.add_argument("-iw","--image-width", type=int, default="224")
     parser.add_argument("-ih","--image-height", type=int, default="224")
+
+    parser.add_argument("-tor","--threshold-odom-radius", type=float, default="1.0")
+    parser.add_argument("-toy","--threshold-odom-yaw", type=float, default="0.3")
+
     parser.add_argument("-t","--test", type=bool, default=False)
     parser.add_argument("-dc","--divide-count", type=int, default=1)
-    parser.add_argument("--hz", type=int, default=0.5)
+    parser.add_argument("--hz", type=int, default=10)
 
     args = parser.parse_args()
     return args
 
 def convert_CompressedImage(data, height=None, width=None):
     obs = []
-    for msg in tqdm(data):
+    for msg in data:
         img = cv2.imdecode(np.fromstring(msg.data, np.uint8), cv2.IMREAD_COLOR)
         if height is not None and width is not None:
             h,w,c = img.shape
@@ -131,7 +135,7 @@ def get_pose_from_msg(msg):
 
 def convert_Odometry(data):
     pos = []
-    for msg in tqdm(data):
+    for msg in data:
         pose = get_pose_from_msg(msg)
         pos.append(pose)
     return pos
@@ -156,6 +160,7 @@ def main():
     gt_1_count = 0
     max_0_count = 5000
     max_1_count = 5000
+    bar = tqdm(total = max_0_count + max_1_count)
 
     for bagfile_path in iglob(os.path.join(args.bagfile_dir, "*")):
         print("start:" + bagfile_path)
@@ -168,7 +173,7 @@ def main():
 
         rosbag_handler = RosbagHandler(bagfile_path)
 
-        for dc in tqdm(range(args.divide_count)):
+        for dc in range(args.divide_count):
             if gt_0_count == max_0_count and gt_1_count == max_1_count:         
                 print("end")
                 exit()
@@ -187,27 +192,45 @@ def main():
                     dataset["pos"] =  convert_Odometry(sample_data[topic])
 
             print("==== save data as torch tensor ====")
-            for idx in tqdm(range(int(len(dataset["obs"])/args.num_image))):
-                t0 = idx*args.num_image
-                t1 = t1 + args.num_image
+            
+            dataset_traj_obs_list = []
+            dataset_traj_pose_list = []
+            
+            prev_pose = [1e3] * 3
+            for i in range(int(len(dataset["obs"]))):
+                pose = dataset["pos"][i]
+                
+                rel_pose = transform_pose(pose, prev_pose)
+                if abs(np.linalg.norm(rel_pose[:2])) >= args.threshold_odom_radius  or abs(rel_pose[2]) >= args.threshold_odom_yaw:
+                    dataset_traj_obs_list.append(dataset["obs"][i])
+                    dataset_traj_pose_list.append(dataset["pos"][i])
+                    prev_pose = pose
 
-                for i in range(50):
+            dataset_traj_obs_list.pop(0) 
+            dataset_traj_pose_list.pop(0) 
+
+            for idx in range(int(len(dataset_traj_obs_list)/args.num_image)):
+                t0 = idx*args.num_image
+                t1 = t0 + args.num_image
+
+                for i in range(10):
                     i = int(i)
-                    if t1+i > len(dataset["obs"]):
+                    if t1+i >= len(dataset_traj_obs_list):
                         continue
 
                     file_name = str(dc) + str(idx) + str(i) + ".pt"
                     path = os.path.join(out_dir, file_name)
                     
-                    pose1 = dataset["pos"][t1]
-                    pose2 = dataset["pos"][t1+i]
-                    obs1 = dataset["obs"][t0:t1]
-                    obs2 = dataset["obs"][t0+i:t1+i]
+                    pose1 = dataset_traj_pose_list[t1]
+                    pose2 = dataset_traj_pose_list[t1+i]
+                    obs1 = dataset_traj_obs_list[t0:t1]
+                    obs2 = dataset_traj_obs_list[t0+i:t1+i]
 
                     concat_obs = [obs1, obs2]
                     rel_pose = transform_pose(pose2, pose1)
-                    dis = math.sqrt(rel_pose[0] * rel_pose[0] + rel_pose[1] * rel_pose[1])
-                    if dis > args.threshold_radius:
+                    # dis = math.sqrt(rel_pose[0] * rel_pose[0] + rel_pose[1] * rel_pose[1])
+
+                    if abs(np.linalg.norm(rel_pose[:2])) >= args.threshold_odom_radius  or abs(rel_pose[2]) >= args.threshold_odom_yaw:
                         gt = 0.0
                         if gt_0_count >= max_0_count:
                             continue
@@ -226,6 +249,7 @@ def main():
                 
                     with open(path, "wb") as f:
                         torch.save(data, f)
+                        bar.update(1)
 
         print("end:" + bagfile_path)
 

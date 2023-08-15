@@ -14,8 +14,8 @@ def arg_parse():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=42)
-    parser.add_argument("-d", "--dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr/")
-    parser.add_argument("-td", "--test-dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_test/")
+    parser.add_argument("-d", "--dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_ibag2/")
+    parser.add_argument("-td", "--test-dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_test2/")
     parser.add_argument("-p", "--pretrained-checkpoint_dir", type=str, default=None)
     parser.add_argument("-es", "--embedding-size", type=int, default=256)
     # parser.add_argument("-en", "--encoder-name", type=str, default="mobilenetv3")
