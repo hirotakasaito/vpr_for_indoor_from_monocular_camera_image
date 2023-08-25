@@ -1,0 +1,8 @@
+tqdm
+tensorboardX
+numpy
+six
+tensorflow
+matplotlib
+efficientnet_pytorch
+timm

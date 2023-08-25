@@ -14,8 +14,9 @@ def arg_parse():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=42)
-    parser.add_argument("-d", "--dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_ibag2/")
-    parser.add_argument("-td", "--test-dataset-dir", type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_test2/")
+    parser.add_argument("-d", "--dataset-dir", type=str, default="/root/dataset/sq2/d_kan1/vpr_ibag_10/")
+    parser.add_argument("-td", "--test-dataset-dir", type=str, default="/root/dataset/sq2/d_kan1/vpr_path_2_10/")
+    # parser.add_argument("-p", "--pretrained-checkpoint_dir", type=str, default="./checkpoint_dir/20230815_1856/epoch=9-loss=0.000158.ckpt")
     parser.add_argument("-p", "--pretrained-checkpoint_dir", type=str, default=None)
     parser.add_argument("-es", "--embedding-size", type=int, default=256)
     # parser.add_argument("-en", "--encoder-name", type=str, default="mobilenetv3")
@@ -23,6 +24,7 @@ def arg_parse():
     parser.add_argument("-sv", "--save-dir", type=str, default="./test_figures")
     parser.add_argument("-l", "--lr", type=float, default=1e-4)
     parser.add_argument("-b", "--batch-size", type=int, default=8)
+    parser.add_argument("-m", "--margin", type=int, default=1.0)
     parser.add_argument("-w", "--num-workers", type=int, default=4)
     parser.add_argument("-e", "--num-epochs", type=int, default=10)
     parser.add_argument("-i", "--checkpoint_dir", type=str, default="./checkpoint_dir")
@@ -38,6 +40,7 @@ def main():
     checkpoint_dir = os.path.join(args.checkpoint_dir, dirs_name)
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
+    args.save_dir = os.path.join(args.save_dir, dirs_name)
 
     devices = torch.cuda.device_count()
     with open(os.path.join(log_dir, "args.txt"), mode="w") as f:

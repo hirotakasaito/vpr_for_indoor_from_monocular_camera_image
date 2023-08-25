@@ -22,7 +22,7 @@ class Dataset(pl.LightningDataModule):
 
     def __getitem__(self, index):
         data = torch.load(self.data_path[index])
-        return data["imgs"][0]/255, data["imgs"][1]/255, data["gt"]
+        return data["anchor_imgs"]/255, data["positive_imgs"]/255, data["negative_imgs"]/255
 
 
  

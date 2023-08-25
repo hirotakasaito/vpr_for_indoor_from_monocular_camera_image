@@ -94,10 +94,10 @@ class RosbagHandler:
 def arg_parse():
     parser = argparse.ArgumentParser(description='')
 
-    parser.add_argument("-bd","--bagfile-dir",type=str,default="/share/private/27th/hirotaka_saito/bagfile/sq2/d_kan1/path/")
-    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_path2")
+    parser.add_argument("-bd","--bagfile-dir",type=str,default="/share/private/27th/hirotaka_saito/bagfile/sq2/d_kan1/path_2/")
+    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_path_2_10")
     # parser.add_argument("-tr","--threshold-radius", type=float, default=5)
-    parser.add_argument("-ni","--num-image", type=int, default=5)
+    parser.add_argument("-ni","--num-image", type=int, default=10)
     parser.add_argument("-to","--topic-odom", type=str, default="t_frog/odom")
     parser.add_argument("-ti","--topic-image", type=str, default="camera/color/image_raw/compressed")
     parser.add_argument("-iw","--image-width", type=int, default="224")
@@ -106,9 +106,10 @@ def arg_parse():
     parser.add_argument("-tor","--threshold-odom-radius", type=float, default="1.0")
     parser.add_argument("-toy","--threshold-odom-yaw", type=float, default="0.3")
 
-    parser.add_argument("-t","--test", type=bool, default=False)
-    parser.add_argument("-dc","--divide-count", type=int, default=1)
-    parser.add_argument("--hz", type=int, default=10)
+    parser.add_argument("-t","--test", type=bool, default=True)
+    parser.add_argument("-dc","--divide-count", type=int, default=5)
+    parser.add_argument("-msc","--max-save-count", type=int, default=100)
+    parser.add_argument("--hz", type=int, default=2)
 
     args = parser.parse_args()
     return args
@@ -146,7 +147,7 @@ def transform_pose(pose, base_pose):
     yaw = pose[2] - base_pose[2]
     trans_pose = np.array([ x*np.cos(base_pose[2]) + y*np.sin(base_pose[2]),
                            -x*np.sin(base_pose[2]) + y*np.cos(base_pose[2]),
-                           np.arctan2(np.sin(yaw), np.cos(yaw))])
+                           np.arctan2(np.sin(yaw), np.cos(yaw))]) 
     return trans_pose
 
 
@@ -156,11 +157,17 @@ def main():
 
     topics = [args.topic_image, args.topic_odom]
 
-    gt_0_count = 0
-    gt_1_count = 0
-    max_0_count = 5000
-    max_1_count = 5000
-    bar = tqdm(total = max_0_count + max_1_count)
+    # gt_0_count = 0
+    # gt_1_count = 0
+    # max_0_count = 5000
+    # max_1_count = 5000
+    bar = tqdm(total = args.max_save_count)
+    save_count = 0
+
+    if args.test:
+        divide = 20
+    else:
+        divide = 1
 
     for bagfile_path in iglob(os.path.join(args.bagfile_dir, "*")):
         print("start:" + bagfile_path)
@@ -174,9 +181,9 @@ def main():
         rosbag_handler = RosbagHandler(bagfile_path)
 
         for dc in range(args.divide_count):
-            if gt_0_count == max_0_count and gt_1_count == max_1_count:         
-                print("end")
-                exit()
+            # if gt_0_count == max_0_count and gt_1_count == max_1_count:         
+            #     print("end")
+            #     exit()
 
             t0 = rosbag_handler.start_time + dc * divide_time
             t1 = rosbag_handler.end_time
@@ -213,7 +220,7 @@ def main():
                 t0 = idx*args.num_image
                 t1 = t0 + args.num_image
 
-                for i in range(10):
+                for i in np.linspace(0, 200, divide):
                     i = int(i)
                     if t1+i >= len(dataset_traj_obs_list):
                         continue
@@ -223,33 +230,25 @@ def main():
                     
                     pose1 = dataset_traj_pose_list[t1]
                     pose2 = dataset_traj_pose_list[t1+i]
-                    obs1 = dataset_traj_obs_list[t0:t1]
-                    obs2 = dataset_traj_obs_list[t0+i:t1+i]
+                    anchor_imgs = dataset_traj_obs_list[t0:t1]
 
-                    concat_obs = [obs1, obs2]
                     rel_pose = transform_pose(pose2, pose1)
-                    # dis = math.sqrt(rel_pose[0] * rel_pose[0] + rel_pose[1] * rel_pose[1])
 
-                    if abs(np.linalg.norm(rel_pose[:2])) >= args.threshold_odom_radius  or abs(rel_pose[2]) >= args.threshold_odom_yaw:
-                        gt = 0.0
-                        if gt_0_count >= max_0_count:
-                            continue
-                        else:
-                            gt_0_count += 1
-                    else:
-                        gt = 1.0
-                        if gt_1_count >= max_1_count:
-                            continue
-                        else:
-                            gt_1_count += 1
+                    if abs(np.linalg.norm(rel_pose[:2])) >= 10.0:
+                        negative_imgs = dataset_traj_obs_list[t0+i:t1+i]
+                        positive_imgs = dataset_traj_obs_list[t0+2:t1+2]
 
-                    tensor_gt = torch.tensor(gt, dtype=torch.float32)
-                    tensor_obs = torch.tensor(np.array(concat_obs), dtype=torch.float32)
-                    data ={"imgs":tensor_obs, "gt":tensor_gt}
-                
-                    with open(path, "wb") as f:
-                        torch.save(data, f)
-                        bar.update(1)
+                        tensor_anchor_imgs = torch.tensor(np.array(anchor_imgs), dtype=torch.float32)
+                        tensor_positive_imgs = torch.tensor(np.array(positive_imgs), dtype=torch.float32)
+                        tensor_negative_imgs = torch.tensor(np.array(negative_imgs), dtype=torch.float32)
+                        data ={"anchor_imgs": tensor_anchor_imgs, "positive_imgs":tensor_positive_imgs, "negative_imgs": tensor_negative_imgs}
+                    
+                        with open(path, "wb") as f:
+                            torch.save(data, f)
+                            bar.update(1)
+                            save_count += 1
+                            if save_count >= args.max_save_count:
+                                exit()
 
         print("end:" + bagfile_path)
 
