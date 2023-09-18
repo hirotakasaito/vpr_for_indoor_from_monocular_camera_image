@@ -17,9 +17,6 @@ def select_encoder(encoder_name, embedding_size):
     elif encoder_name == "mobilenetv3": 
         encoder = timm.create_model('tf_mobilenetv3_large_075', pretrained=True, num_classes=embedding_size, in_chans=3) 
 
-    elif encoder_name == "swin_transformer": 
-        encoder = timm.create_model('swin_small_patch4_window7_224', pretrained=True, num_classes=embedding_size, in_chans=3) 
-
     return encoder
 
 class Encoder(nn.Module):
@@ -48,11 +45,12 @@ class Vpr(pl.LightningModule):
         self._save_dir = self.hparams.save_dir
         self._batch_size = self.hparams.batch_size
         self._margin = self.hparams.margin
+        self._pile_num_img = self.hparams.pile_num_img
 
         self._encoder = Encoder(self._encoder_name, self._embedding_size)
-        # self._gru1 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
+        self._gru = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
         # self._gru2 = nn.GRU(self._embedding_size, 64, 2, batch_first=True)
-        self._lstm = nn.LSTM(self._embedding_size, 64, 2, batch_first=True)
+        # self._lstm = nn.LSTM(self._embedding_size, 64, 2, batch_first=True)
         # self._lstm2 = nn.LSTM(self._embedding_size, 64, 2, batch_first=True)
 
         self._out_list = []
@@ -68,18 +66,12 @@ class Vpr(pl.LightningModule):
                 nn.Sigmoid()
         )
 
-    def forward(self,img, batch_size):
-        # h0 = torch.zeros(2, batch_size, 64).to(img.device)
-        # c0 = torch.zeros(2, batch_size, 64).to(img.device)
+    def forward(self, img):
         x = self._encoder(img)
-        _, time_step, _ = x.size()
+        _, _, _ = x.size()
 
-        # self.save_hyperparameters()
-        # x1, _ = self._gru1(x1, h0)
-        # x2, _ = self._gru2(x2, h0)
-        x, (h_n,c_n) = (self._lstm(x))
-
-        # train_output = self._fc(torch.cat([x1[:,-1,:], x2[:,-1,:]], dim=-1))
+        # x, (h_n,c_n) = (self._lstm(x))
+        x, _ = (self._gru(x))
 
         return x[:,-1,:]
 
@@ -90,6 +82,7 @@ class Vpr(pl.LightningModule):
                 *features,
                 distance_function=lambda x, y: 1.0 - F.cosine_similarity(x, y),
                 margin=self._margin)
+        del batch
         return loss, features
 
     def configure_optimizers(self):
@@ -105,6 +98,7 @@ class Vpr(pl.LightningModule):
         self.log("train/negative_distance",
             tm.functional.pairwise_euclidean_distance(features[0], features[2]).mean(),
             prog_bar=False, logger=True)
+        del batch
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -116,11 +110,13 @@ class Vpr(pl.LightningModule):
         self.log("valid/negative_distance",
             tm.functional.pairwise_euclidean_distance(features[0], features[2]).mean(),
             prog_bar=False, logger=True)
+        del batch
         return loss
 
     def test_step(self, batch, batch_idx):
         loss, features = self.calc_loss(batch, 1)
         anchor_img, positive_img, negative_img = batch
+        del batch
 
         self.log("test/loss", loss, prog_bar=False, logger=True)
         self.log("test/loss", loss, prog_bar=False, logger=True)

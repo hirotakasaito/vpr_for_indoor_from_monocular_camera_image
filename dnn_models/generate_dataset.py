@@ -95,7 +95,7 @@ def arg_parse():
     parser = argparse.ArgumentParser(description='')
 
     parser.add_argument("-bd","--bagfile-dir",type=str,default="/share/private/27th/hirotaka_saito/bagfile/sq2/d_kan1/path_2/")
-    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_path_2_10")
+    parser.add_argument("-od","--output-dir" ,type=str, default="/share/private/27th/hirotaka_saito/dataset/sq2/d_kan1/vpr_path_10_3")
     # parser.add_argument("-tr","--threshold-radius", type=float, default=5)
     parser.add_argument("-ni","--num-image", type=int, default=10)
     parser.add_argument("-to","--topic-odom", type=str, default="t_frog/odom")
@@ -103,7 +103,7 @@ def arg_parse():
     parser.add_argument("-iw","--image-width", type=int, default="224")
     parser.add_argument("-ih","--image-height", type=int, default="224")
 
-    parser.add_argument("-tor","--threshold-odom-radius", type=float, default="1.0")
+    parser.add_argument("-tor","--threshold-odom-radius", type=float, default="3.0")
     parser.add_argument("-toy","--threshold-odom-yaw", type=float, default="0.3")
 
     parser.add_argument("-t","--test", type=bool, default=True)
@@ -157,10 +157,6 @@ def main():
 
     topics = [args.topic_image, args.topic_odom]
 
-    # gt_0_count = 0
-    # gt_1_count = 0
-    # max_0_count = 5000
-    # max_1_count = 5000
     bar = tqdm(total = args.max_save_count)
     save_count = 0
 
@@ -181,9 +177,6 @@ def main():
         rosbag_handler = RosbagHandler(bagfile_path)
 
         for dc in range(args.divide_count):
-            # if gt_0_count == max_0_count and gt_1_count == max_1_count:         
-            #     print("end")
-            #     exit()
 
             t0 = rosbag_handler.start_time + dc * divide_time
             t1 = rosbag_handler.end_time
