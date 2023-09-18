@@ -30,6 +30,7 @@ def test():
     model = torch.jit.load(os.path.join(args.output_dir,"vpr_output.pt"))
     sample_img = torch.randn(1,10,224,224,3)
     model_output = model(sample_img)
+    print("test")
     print("model shape")
     print(model_output.shape)
 
